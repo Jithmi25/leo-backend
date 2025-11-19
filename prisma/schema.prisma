@@ -1,0 +1,260 @@
+// prisma/schema.prisma
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id            String   @id @default(uuid())
+  email         String   @unique
+  googleId      String?  @unique
+  fullName      String
+  displayName   String
+  profileImage  String?
+  role          UserRole @default(LEO_MEMBER)
+  homeClub      String
+  district      String
+  leoId         String?
+  isVerified    Boolean  @default(false)
+  postCount     Int      @default(0)
+  
+  // Timestamps
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  
+  // Relations
+  posts         Post[]
+  events        Event[]
+  eventRegistrations EventRegistration[]
+  serviceHours  ServiceHour[]
+  badges        UserBadge[]
+  notifications Notification[]
+  polls         Poll[]
+  pollVotes     PollVote[]
+  comments      Comment[]
+  likes         Like[]
+  
+  @@map("users")
+}
+
+model Post {
+  id          String   @id @default(uuid())
+  title       String
+  content     String
+  imageUrl    String?
+  authorId    String
+  authorName  String
+  authorProfileImage String?
+  club        String?
+  district    String?
+  isPublic    Boolean  @default(true)
+  likesCount  Int      @default(0)
+  commentsCount Int    @default(0)
+  
+  // Timestamps
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  // Relations
+  author      User     @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  comments    Comment[]
+  likes       Like[]
+  
+  @@map("posts")
+}
+
+model Event {
+  id          String   @id @default(uuid())
+  title       String
+  description String
+  date        DateTime
+  time        String
+  location    String
+  hostClub    String
+  district    String
+  imageUrl    String?
+  maxParticipants Int?
+  
+  // Timestamps
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  // Relations
+  creator     User     @relation(fields: [creatorId], references: [id])
+  creatorId   String
+  registrations EventRegistration[]
+  serviceHours ServiceHour[]
+  
+  @@map("events")
+}
+
+model EventRegistration {
+  id        String   @id @default(uuid())
+  userId    String
+  eventId   String
+  status    RegistrationStatus @default(REGISTERED)
+  
+  createdAt DateTime @default(now())
+  
+  // Relations
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  event     Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  
+  @@unique([userId, eventId])
+  @@map("event_registrations")
+}
+
+model ServiceHour {
+  id          String   @id @default(uuid())
+  userId      String
+  eventId     String?
+  description String
+  hours       Float
+  date        DateTime
+  status      VerificationStatus @default(PENDING)
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  // Relations
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  event       Event?   @relation(fields: [eventId], references: [id])
+  
+  @@map("service_hours")
+}
+
+model Badge {
+  id          String   @id @default(uuid())
+  name        String
+  description String
+  imageUrl    String
+  criteria    String
+  
+  @@map("badges")
+}
+
+model UserBadge {
+  id        String   @id @default(uuid())
+  userId    String
+  badgeId   String
+  earnedAt  DateTime @default(now())
+  
+  // Relations
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  badge     Badge    @relation(fields: [badgeId], references: [id], onDelete: Cascade)
+  
+  @@unique([userId, badgeId])
+  @@map("user_badges")
+}
+
+model Poll {
+  id          String   @id @default(uuid())
+  question    String
+  description String?
+  options     Json     // Stores poll options as JSON array
+  createdBy   String
+  district    String?
+  club        String?
+  endDate     DateTime
+  isActive    Boolean  @default(true)
+  
+  createdAt   DateTime @default(now())
+  
+  // Relations
+  creator     User     @relation(fields: [createdBy], references: [id])
+  votes       PollVote[]
+  
+  @@map("polls")
+}
+
+model PollVote {
+  id        String   @id @default(uuid())
+  userId    String
+  pollId    String
+  optionIndex Int
+  createdAt DateTime @default(now())
+  
+  // Relations
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  poll      Poll     @relation(fields: [pollId], references: [id], onDelete: Cascade)
+  
+  @@unique([userId, pollId])
+  @@map("poll_votes")
+}
+
+model Comment {
+  id        String   @id @default(uuid())
+  content   String
+  userId    String
+  postId    String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  // Relations
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  post      Post     @relation(fields: [postId], references: [id], onDelete: Cascade)
+  
+  @@map("comments")
+}
+
+model Like {
+  id        String   @id @default(uuid())
+  userId    String
+  postId    String
+  createdAt DateTime @default(now())
+  
+  // Relations
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  post      Post     @relation(fields: [postId], references: [id], onDelete: Cascade)
+  
+  @@unique([userId, postId])
+  @@map("likes")
+}
+
+model Notification {
+  id        String   @id @default(uuid())
+  userId    String
+  title     String
+  message   String
+  type      NotificationType
+  isRead    Boolean  @default(false)
+  relatedId String?  // ID of related post, event, etc.
+  
+  createdAt DateTime @default(now())
+  
+  // Relations
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  @@map("notifications")
+}
+
+// Enums
+enum UserRole {
+  LEO_MEMBER
+  WEBMASTER
+  ADMIN
+}
+
+enum RegistrationStatus {
+  REGISTERED
+  ATTENDED
+  CANCELLED
+}
+
+enum VerificationStatus {
+  PENDING
+  VERIFIED
+  REJECTED
+}
+
+enum NotificationType {
+  POST
+  EVENT
+  POLL
+  SYSTEM
+  BADGE
+}
